@@ -44,6 +44,7 @@ AVR_OBJCOPY :=  $(call FIND_TOOL,avr-objcopy)
 
 AVRDUDE      :=  $(call FIND_TOOL,avrdude)
 AVARICE      :=  $(call FIND_TOOL,avarice)
+AVRSIZE      :=  $(call FIND_TOOL,avr-size)
 
 # Tools for Maple/Flymaple
 # Toolchain is expected to be on the PATH
