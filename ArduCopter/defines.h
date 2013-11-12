@@ -86,6 +86,7 @@
 #define OCTA_FRAME 5
 #define HELI_FRAME 6
 #define OCTA_QUAD_FRAME 7
+#define SINGLE_FRAME 8
 
 #define PLUS_FRAME 0
 #define X_FRAME 1
@@ -144,10 +145,10 @@
 #define POSITION 8                      // AUTO control
 #define LAND 9                          // AUTO control
 #define OF_LOITER 10                    // Hold a single location using optical flow sensor
-#define TOY_A 11                        // THOR Enum for Toy mode
-#define TOY_M 12                        // THOR Enum for Toy mode
+#define TOY 11                          // THOR Enum for Toy mode (Note: 12 is no longer used)
 #define SPORT 13                        // earth frame rate control
 #define NUM_MODES 14
+
 
 // CH_6 Tuning
 // -----------
@@ -346,6 +347,14 @@ enum ap_message {
 #define DATA_AUTOTUNE_REACHED_LIMIT     35
 #define DATA_AUTOTUNE_TESTING           36
 #define DATA_AUTOTUNE_SAVEDGAINS        37
+#define DATA_SAVE_TRIM                  38
+#define DATA_SAVEWP_ADD_WP              39
+#define DATA_SAVEWP_CLEAR_MISSION_RTL   40
+#define DATA_FENCE_ENABLE               41
+#define DATA_FENCE_DISABLE              42
+#define DATA_ACRO_TRAINER_DISABLED      43
+#define DATA_ACRO_TRAINER_LEVELING      44
+#define DATA_ACRO_TRAINER_LIMITED       45
 
 
 
@@ -445,6 +454,7 @@ enum ap_message {
 #define ERROR_SUBSYSTEM_FAILSAFE_FENCE      9
 #define ERROR_SUBSYSTEM_FLIGHT_MODE         10
 #define ERROR_SUBSYSTEM_GPS                 11
+#define ERROR_SUBSYSTEM_CRASH_CHECK         12
 // general error codes
 #define ERROR_CODE_ERROR_RESOLVED           0
 #define ERROR_CODE_FAILED_TO_INITIALISE     1
@@ -458,8 +468,9 @@ enum ap_message {
 // subsystem specific error codes -- gps
 #define ERROR_CODE_GPS_GLITCH               2
 // subsystem specific error codes -- main
-#define ERROR_CODE_INS_DELAY                1
-
+#define ERROR_CODE_MAIN_INS_DELAY           1
+// subsystem specific error codes -- crash checker
+#define ERROR_CODE_CRASH_CHECK_CRASH        1
 
 
 #endif // _DEFINES_H
