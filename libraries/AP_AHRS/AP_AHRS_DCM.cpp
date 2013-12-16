@@ -117,6 +117,12 @@ AP_AHRS_DCM::reset(bool recover_eulers)
     }
 }
 
+// reset the current attitude, used by HIL
+void AP_AHRS_DCM::reset_attitude(const float &_roll, const float &_pitch, const float &_yaw)
+{
+    _dcm_matrix.from_euler(_roll, _pitch, _yaw);    
+}
+
 /*
  *  check the DCM matrix for pathological values
  */
@@ -238,7 +244,7 @@ AP_AHRS_DCM::normalize(void)
 float
 AP_AHRS_DCM::yaw_error_compass(void)
 {
-    Vector3f mag = Vector3f(_compass->mag_x, _compass->mag_y, _compass->mag_z);
+    const Vector3f &mag = _compass->get_field();
     // get the mag vector in the earth frame
     Vector2f rb = _dcm_matrix.mulXY(mag);
 

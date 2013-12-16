@@ -62,6 +62,63 @@ static void init_rc_out()
 #endif
 }
 
+// check for pilot input on rudder stick for arming
+static void rudder_arm_check() 
+{
+    //TODO: ensure rudder arming disallowed during radio calibration
+
+    //TODO: waggle ailerons and rudder and beep after rudder arming
+    
+    static uint32_t rudder_arm_timer;
+
+    if (arming.is_armed()) {
+        //already armed, no need to run remainder of this function
+        rudder_arm_timer = 0;
+        return;
+    } 
+
+    if (! arming.rudder_arming_enabled()) {
+        //parameter disallows rudder arming
+        return;
+    }
+
+    //if throttle is not down, then pilot cannot rudder arm
+    if (g.rc_3.control_in > 0) {
+        rudder_arm_timer = 0;
+        return;
+    }
+
+    //if not in a 'manual' mode then disallow rudder arming
+    if (auto_throttle_mode ) {
+        rudder_arm_timer = 0;
+        return;      
+    }
+
+    // full left or right rudder starts arming counter
+    if (g.rc_4.control_in > 4000 
+        || g.rc_4.control_in < -4000) {
+        
+        uint32_t now = millis();
+
+        if (rudder_arm_timer == 0 || 
+            now - rudder_arm_timer < 3000) {
+
+            if (rudder_arm_timer == 0) rudder_arm_timer = now;
+        } else {
+            //time to arm!
+            if (arming.arm(AP_Arming::RUDDER)) {
+                //only log if arming was successful
+                Log_Arm_Disarm();
+            }                
+        }
+
+    }
+    else { //not at full left or right rudder
+        rudder_arm_timer = 0;
+        return;
+    }
+}
+
 static void read_radio()
 {
     elevon.ch1_temp = channel_roll->read();
@@ -110,6 +167,8 @@ static void read_radio()
         airspeed_nudge_cm = 0;
         throttle_nudge = 0;
     }
+
+    rudder_arm_check();
 }
 
 static void control_failsafe(uint16_t pwm)
@@ -129,7 +188,7 @@ static void control_failsafe(uint16_t pwm)
 
         //Check for failsafe and debounce funky reads
     } else if (g.throttle_fs_enabled) {
-        if (pwm < (unsigned)g.throttle_fs_value) {
+        if (throttle_failsafe_level()) {
             // we detect a failsafe from radio
             // throttle has dropped below the mark
             failsafe.ch3_counter++;
@@ -220,4 +279,18 @@ static void trim_radio()
     }
 
     trim_control_surfaces();
+}
+
+/*
+  return true if throttle level is below throttle failsafe threshold
+ */
+static bool throttle_failsafe_level(void)
+{
+    if (!g.throttle_fs_enabled) {
+        return false;
+    }
+    if (channel_throttle->get_reverse()) {
+        return channel_throttle->radio_in >= g.throttle_fs_value;
+    }
+    return channel_throttle->radio_in <= g.throttle_fs_value;
 }

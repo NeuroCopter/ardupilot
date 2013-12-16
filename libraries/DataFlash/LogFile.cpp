@@ -647,15 +647,52 @@ void DataFlash_Class::Log_Write_GPS(const GPS *gps, int32_t relative_alt)
     WriteBlock(&pkt, sizeof(pkt));
 }
 
+// Write an RCIN packet
+void DataFlash_Class::Log_Write_RCIN(void)
+{
+    struct log_RCIN pkt = {
+        LOG_PACKET_HEADER_INIT(LOG_RCIN_MSG),
+        timestamp     : hal.scheduler->millis(),
+        chan1         : hal.rcin->read(0),
+        chan2         : hal.rcin->read(1),
+        chan3         : hal.rcin->read(2),
+        chan4         : hal.rcin->read(3),
+        chan5         : hal.rcin->read(4),
+        chan6         : hal.rcin->read(5),
+        chan7         : hal.rcin->read(6),
+        chan8         : hal.rcin->read(7)
+    };
+    WriteBlock(&pkt, sizeof(pkt));
+}
+
+// Write an SERVO packet
+void DataFlash_Class::Log_Write_RCOUT(void)
+{
+    struct log_RCOUT pkt = {
+        LOG_PACKET_HEADER_INIT(LOG_RCOUT_MSG),
+        timestamp     : hal.scheduler->millis(),
+        chan1         : hal.rcout->read(0),
+        chan2         : hal.rcout->read(1),
+        chan3         : hal.rcout->read(2),
+        chan4         : hal.rcout->read(3),
+        chan5         : hal.rcout->read(4),
+        chan6         : hal.rcout->read(5),
+        chan7         : hal.rcout->read(6),
+        chan8         : hal.rcout->read(7)
+    };
+    WriteBlock(&pkt, sizeof(pkt));
+}
+
 
 // Write an raw accel/gyro data packet
 void DataFlash_Class::Log_Write_IMU(const AP_InertialSensor &ins)
 {
-    const Vector3f &gyro = ins.get_gyro();
-    const Vector3f &accel = ins.get_accel();
+    uint32_t tstamp = hal.scheduler->millis();
+    const Vector3f &gyro = ins.get_gyro(0);
+    const Vector3f &accel = ins.get_accel(0);
     struct log_IMU pkt = {
         LOG_PACKET_HEADER_INIT(LOG_IMU_MSG),
-        timestamp : hal.scheduler->millis(),
+        timestamp : tstamp,
         gyro_x  : gyro.x,
         gyro_y  : gyro.y,
         gyro_z  : gyro.z,
@@ -664,6 +701,22 @@ void DataFlash_Class::Log_Write_IMU(const AP_InertialSensor &ins)
         accel_z : accel.z
     };
     WriteBlock(&pkt, sizeof(pkt));
+    if (ins.get_gyro_count() < 2 && ins.get_accel_count() < 2) {
+        return;
+    }
+    const Vector3f &gyro2 = ins.get_gyro(1);
+    const Vector3f &accel2 = ins.get_accel(1);
+    struct log_IMU pkt2 = {
+        LOG_PACKET_HEADER_INIT(LOG_IMU2_MSG),
+        timestamp : tstamp,
+        gyro_x  : gyro2.x,
+        gyro_y  : gyro2.y,
+        gyro_z  : gyro2.z,
+        accel_x : accel2.x,
+        accel_y : accel2.y,
+        accel_z : accel2.z
+    };
+    WriteBlock(&pkt2, sizeof(pkt2));
 }
 
 // Write a text message to the log
