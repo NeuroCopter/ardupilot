@@ -46,7 +46,6 @@ print_log_menu(void)
         if (g.log_bitmask & MASK_LOG_CURRENT) cliSerial->printf_P(PSTR(" CURRENT"));
         if (g.log_bitmask & MASK_LOG_RCOUT) cliSerial->printf_P(PSTR(" RCOUT"));
         if (g.log_bitmask & MASK_LOG_OPTFLOW) cliSerial->printf_P(PSTR(" OPTFLOW"));
-        if (g.log_bitmask & MASK_LOG_PID) cliSerial->printf_P(PSTR(" PID"));
         if (g.log_bitmask & MASK_LOG_COMPASS) cliSerial->printf_P(PSTR(" COMPASS"));
         if (g.log_bitmask & MASK_LOG_INAV) cliSerial->printf_P(PSTR(" INAV"));
         if (g.log_bitmask & MASK_LOG_CAMERA) cliSerial->printf_P(PSTR(" CAMERA"));
@@ -239,8 +238,6 @@ struct PACKED log_Optflow {
     uint8_t surface_quality;
     int16_t x_cm;
     int16_t y_cm;
-    float   latitude;
-    float   longitude;
     int32_t roll;
     int32_t pitch;
 };
@@ -256,8 +253,6 @@ static void Log_Write_Optflow()
         surface_quality : optflow.surface_quality,
         x_cm            : (int16_t) optflow.x_cm,
         y_cm            : (int16_t) optflow.y_cm,
-        latitude        : optflow.vlat,
-        longitude       : optflow.vlon,
         roll            : of_roll,
         pitch           : of_pitch
     };
@@ -651,33 +646,6 @@ static void Log_Write_Data(uint8_t id, float value)
     }
 }
 
-struct PACKED log_PID {
-    LOG_PACKET_HEADER;
-    uint8_t id;
-    int32_t error;
-    int32_t p;
-    int32_t i;
-    int32_t d;
-    int32_t output;
-    float  gain;
-};
-
-// Write an PID packet
-static void Log_Write_PID(uint8_t pid_id, int32_t error, int32_t p, int32_t i, int32_t d, int32_t output, float gain)
-{
-    struct log_PID pkt = {
-        LOG_PACKET_HEADER_INIT(LOG_PID_MSG),
-        id      : pid_id,
-        error   : error,
-        p       : p,
-        i       : i,
-        d       : d,
-        output  : output,
-        gain    : gain
-    };
-    DataFlash.WriteBlock(&pkt, sizeof(pkt));
-}
-
 struct PACKED log_Camera {
     LOG_PACKET_HEADER;
     uint32_t gps_time;
@@ -737,7 +705,7 @@ static const struct LogStructure log_structure[] PROGMEM = {
     { LOG_CURRENT_MSG, sizeof(log_Current),             
       "CURR", "hIhhhf",      "ThrOut,ThrInt,Volt,Curr,Vcc,CurrTot" },
     { LOG_OPTFLOW_MSG, sizeof(log_Optflow),       
-      "OF",   "hhBccffee",   "Dx,Dy,SQual,X,Y,Lat,Lng,Roll,Pitch" },
+      "OF",   "hhBccee",   "Dx,Dy,SQual,X,Y,Roll,Pitch" },
     { LOG_NAV_TUNING_MSG, sizeof(log_Nav_Tuning),       
       "NTUN", "Ecffffffffee",    "WPDst,WPBrg,PErX,PErY,DVelX,DVelY,VelX,VelY,DAcX,DAcY,DRol,DPit" },
     { LOG_CONTROL_TUNING_MSG, sizeof(log_Control_Tuning),     
@@ -770,8 +738,6 @@ static const struct LogStructure log_structure[] PROGMEM = {
       "DU32",  "BI",         "Id,Value" },
     { LOG_DATA_FLOAT_MSG, sizeof(log_Data_Float),         
       "DFLT",  "Bf",         "Id,Value" },
-    { LOG_PID_MSG, sizeof(log_PID),         
-      "PID",   "Biiiiif",    "Id,Error,P,I,D,Out,Gain" },
     { LOG_CAMERA_MSG, sizeof(log_Camera),                 
       "CAM",   "IHLLeccC",   "GPSTime,GPSWeek,Lat,Lng,Alt,Roll,Pitch,Yaw" },
     { LOG_ERROR_MSG, sizeof(log_Error),         
@@ -787,13 +753,11 @@ static void Log_Read(uint16_t log_num, uint16_t start_page, uint16_t end_page)
 
     cliSerial->printf_P(PSTR("\n" FIRMWARE_STRING
                              "\nFree RAM: %u\n"),
-                        (unsigned) memcheck_available_memory());
+                        (unsigned) hal.util->available_memory());
 
     cliSerial->println_P(PSTR(HAL_BOARD_NAME));
 
 	DataFlash.LogReadProcess(log_num, start_page, end_page, 
-                             sizeof(log_structure)/sizeof(log_structure[0]),
-                             log_structure, 
                              print_flight_mode,
                              cliSerial);
 }
@@ -801,19 +765,23 @@ static void Log_Read(uint16_t log_num, uint16_t start_page, uint16_t end_page)
 // start a new log
 static void start_logging() 
 {
-    if (g.log_bitmask != 0 && !ap.logging_started) {
-        ap.logging_started = true;
-        DataFlash.StartNewLog(sizeof(log_structure)/sizeof(log_structure[0]), log_structure);
-        DataFlash.Log_Write_Message_P(PSTR(FIRMWARE_STRING));
+    if (g.log_bitmask != 0) {
+        if (!ap.logging_started) {
+            ap.logging_started = true;
+            DataFlash.StartNewLog();
+            DataFlash.Log_Write_Message_P(PSTR(FIRMWARE_STRING));
 
-        // write system identifier as well if available
-        char sysid[40];
-        if (hal.util->get_system_id(sysid)) {
-            DataFlash.Log_Write_Message(sysid);
+            // write system identifier as well if available
+            char sysid[40];
+            if (hal.util->get_system_id(sysid)) {
+                DataFlash.Log_Write_Message(sysid);
+            }
+
+            // log the flight mode
+            Log_Write_Mode(control_mode);
         }
-
-        // log the flight mode
-        Log_Write_Mode(control_mode);
+        // enable writes
+        DataFlash.EnableWrites(true);
     }
 }
 
@@ -842,7 +810,6 @@ static void Log_Write_Optflow() {}
 static void Log_Write_Nav_Tuning() {}
 static void Log_Write_Control_Tuning() {}
 static void Log_Write_Performance() {}
-static void Log_Write_PID(uint8_t pid_id, int32_t error, int32_t p, int32_t i, int32_t d, int32_t output, float gain) {}
 static void Log_Write_Camera() {}
 static void Log_Write_Error(uint8_t sub_system, uint8_t error_code) {}
 static int8_t process_logs(uint8_t argc, const Menu::arg *argv) {

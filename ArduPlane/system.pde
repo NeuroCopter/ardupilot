@@ -84,7 +84,7 @@ static void init_ardupilot()
 
     cliSerial->printf_P(PSTR("\n\nInit " FIRMWARE_STRING
                          "\n\nFree RAM: %u\n"),
-                    memcheck_available_memory());
+                        hal.util->available_memory());
 
 
     //
@@ -109,9 +109,6 @@ static void init_ardupilot()
 
     // init the GCS
     gcs[0].init(hal.uartA);
-    // Register mavlink_delay_cb, which will run anytime you have
-    // more than 5ms remaining in your call to hal.scheduler->delay
-    hal.scheduler->register_delay_callback(mavlink_delay_cb, 5);
 
     // we start by assuming USB connected, as we initialed the serial
     // port with SERIAL0_BAUD. check_usb_mux() fixes this if need be.    
@@ -134,7 +131,7 @@ static void init_ardupilot()
     mavlink_system.sysid = g.sysid_this_mav;
 
 #if LOGGING_ENABLED == ENABLED
-    DataFlash.Init();
+    DataFlash.Init(log_structure, sizeof(log_structure)/sizeof(log_structure[0]));
     if (!DataFlash.CardInserted()) {
         gcs_send_text_P(SEVERITY_LOW, PSTR("No dataflash card inserted"));
         g.log_bitmask.set(0);
@@ -149,6 +146,10 @@ static void init_ardupilot()
         start_logging();
     }
 #endif
+
+    // Register mavlink_delay_cb, which will run anytime you have
+    // more than 5ms remaining in your call to hal.scheduler->delay
+    hal.scheduler->register_delay_callback(mavlink_delay_cb, 5);
 
 #if CONFIG_INS_TYPE == CONFIG_INS_OILPAN || CONFIG_HAL_BOARD == HAL_BOARD_APM1
     apm1_adc.Init();      // APM ADC library initialization
@@ -377,11 +378,15 @@ static void check_long_failsafe()
             failsafe_long_on_event(FAILSAFE_LONG);
         } else if (!failsafe.rc_override_active && 
                    failsafe.state == FAILSAFE_SHORT && 
-           (tnow - failsafe.ch3_timer_ms) > g.long_fs_timeout*1000) {
+                   (tnow - failsafe.ch3_timer_ms) > g.long_fs_timeout*1000) {
             failsafe_long_on_event(FAILSAFE_LONG);
-        } else if (g.gcs_heartbeat_fs_enabled && 
-            failsafe.last_heartbeat_ms != 0 &&
-            (tnow - failsafe.last_heartbeat_ms) > g.long_fs_timeout*1000) {
+        } else if (g.gcs_heartbeat_fs_enabled != GCS_FAILSAFE_OFF && 
+                   failsafe.last_heartbeat_ms != 0 &&
+                   (tnow - failsafe.last_heartbeat_ms) > g.long_fs_timeout*1000) {
+            failsafe_long_on_event(FAILSAFE_GCS);
+        } else if (g.gcs_heartbeat_fs_enabled == GCS_FAILSAFE_HB_RSSI && 
+                   failsafe.last_radio_status_remrssi_ms != 0 &&
+                   (tnow - failsafe.last_radio_status_remrssi_ms) > g.long_fs_timeout*1000) {
             failsafe_long_on_event(FAILSAFE_GCS);
         }
     } else {

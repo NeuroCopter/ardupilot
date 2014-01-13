@@ -1,6 +1,6 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#define THISFIRMWARE "ArduRover v2.44beta1"
+#define THISFIRMWARE "ArduRover v2.44"
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -84,7 +84,6 @@
 #include <GCS_MAVLink.h>    // MAVLink GCS definitions
 #include <AP_Airspeed.h>    // needed for AHRS build
 #include <AP_Vehicle.h>     // needed for AHRS build
-#include <memcheck.h>
 #include <DataFlash.h>
 #include <AP_RCMapper.h>        // RC input mapping library
 #include <SITL.h>
@@ -163,8 +162,8 @@ static DataFlash_APM1 DataFlash;
 #elif CONFIG_HAL_BOARD == HAL_BOARD_APM2
 static DataFlash_APM2 DataFlash;
 #elif CONFIG_HAL_BOARD == HAL_BOARD_AVR_SITL
-//static DataFlash_File DataFlash("/tmp/APMlogs");
-static DataFlash_SITL DataFlash;
+static DataFlash_File DataFlash("logs");
+//static DataFlash_SITL DataFlash;
 #elif CONFIG_HAL_BOARD == HAL_BOARD_PX4
 static DataFlash_File DataFlash("/fs/microsd/APM/logs");
 #elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX
@@ -354,6 +353,7 @@ static struct {
     uint32_t rc_override_timer;
     uint32_t start_time;
     uint8_t triggered;
+    uint32_t last_valid_rc_ms;
 } failsafe;
 
 // notification object for LEDs, buzzers etc (parameter set to false disables external leds)
@@ -553,13 +553,15 @@ static const AP_Scheduler::Task scheduler_tasks[] PROGMEM = {
 	{ read_radio,             1,   1000 },
     { ahrs_update,            1,   6400 },
     { read_sonars,            1,   2000 },
-    { update_current_mode,    1,   1000 },
-    { set_servos,             1,   1000 },
-    { update_GPS,             5,   2500 },
+    { update_current_mode,    1,   1500 },
+    { set_servos,             1,   1500 },
+    { update_GPS_50Hz,        1,   2500 },
+    { update_GPS_10Hz,        5,   2500 },
     { navigate,               5,   1600 },
     { update_compass,         5,   2000 },
     { update_commands,        5,   1000 },
-    { update_logging,         5,   1000 },
+    { update_logging1,        5,   1000 },
+    { update_logging2,        5,   1000 },
     { gcs_retry_deferred,     1,   1000 },
     { gcs_update,             1,   1700 },
     { gcs_data_stream_send,   1,   3000 },
@@ -581,7 +583,6 @@ static const AP_Scheduler::Task scheduler_tasks[] PROGMEM = {
   setup is called when the sketch starts
  */
 void setup() {
-	memcheck_init();
     cliSerial = hal.console;
 
     // load the default values of variables listed in var_info[]
@@ -707,7 +708,7 @@ static void update_compass(void)
 /*
   log some key data - 10Hz
  */
-static void update_logging(void)
+static void update_logging1(void)
 {
     if ((g.log_bitmask & MASK_LOG_ATTITUDE_MED) && !(g.log_bitmask & MASK_LOG_ATTITUDE_FAST))
         Log_Write_Attitude();
@@ -717,12 +718,21 @@ static void update_logging(void)
 
     if (g.log_bitmask & MASK_LOG_NTUN)
         Log_Write_Nav_Tuning();
+}
 
+/*
+  log some key data - 10Hz
+ */
+static void update_logging2(void)
+{
     if (g.log_bitmask & MASK_LOG_STEERING) {
         if (control_mode == STEERING || control_mode == AUTO || control_mode == RTL || control_mode == GUIDED) {
             Log_Write_Steering();
         }
     }
+
+    if (g.log_bitmask & MASK_LOG_RC)
+        Log_Write_RC();
 }
 
 
@@ -794,7 +804,7 @@ static void one_second_loop(void)
     }
 }
 
-static void update_GPS(void)
+static void update_GPS_50Hz(void)
 {        
     static uint32_t last_gps_reading;
 	g_gps->update();
@@ -805,7 +815,11 @@ static void update_GPS(void)
             DataFlash.Log_Write_GPS(g_gps, current_loc.alt);
         }
     }
+}
 
+
+static void update_GPS_10Hz(void)
+{        
     have_position = ahrs.get_projected_position(current_loc);
 
 	if (g_gps->new_data && g_gps->status() >= GPS::GPS_OK_FIX_3D) {
@@ -851,6 +865,7 @@ static void update_current_mode(void)
     case AUTO:
     case RTL:
     case GUIDED:
+        set_reverse(false);
         calc_lateral_acceleration();
         calc_nav_steer();
         calc_throttle(g.speed_cruise);
@@ -905,6 +920,7 @@ static void update_current_mode(void)
         // hold position - stop motors and center steering
         channel_throttle->servo_out = 0;
         channel_steer->servo_out = 0;
+        set_reverse(false);
         break;
 
     case INITIALISING:
