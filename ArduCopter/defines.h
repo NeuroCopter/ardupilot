@@ -94,24 +94,11 @@
 #define X_FRAME 1
 #define V_FRAME 2
 
-// LED output
-#define NORMAL_LEDS 0
-#define SAVE_TRIM_LEDS 1
-
-
 // Internal defines, don't edit and expect things to work
 // -------------------------------------------------------
 
-#define TRUE 1
-#define FALSE 0
 #define ToRad(x) radians(x)	// *pi/180
 #define ToDeg(x) degrees(x)	// *180/pi
-
-#define DEBUG 0
-#define LOITER_RANGE 60 // for calculating power outside of loiter radius
-
-#define T6 1000000
-#define T7 10000000
 
 // GPS type codes - use the names, not the numbers
 #define GPS_PROTOCOL_NONE       -1
@@ -128,11 +115,6 @@
 #define HIL_MODE_DISABLED               0
 #define HIL_MODE_ATTITUDE               1
 #define HIL_MODE_SENSORS                2
-
-// Altitude status definitions
-#define REACHED_ALT                     0
-#define DESCENDING                      1
-#define ASCENDING                       2
 
 // Auto Pilot modes
 // ----------------
@@ -198,6 +180,10 @@
                     // requested
 #define NO_COMMAND 0
 
+// Earth frame and body frame definitions used by rate controllers
+#define EARTH_FRAME         0
+#define BODY_FRAME          1
+#define BODY_EARTH_FRAME    2
 
 // Navigation modes held in nav_mode variable
 #define NAV_NONE        0
@@ -252,7 +238,7 @@
 #define LOG_EVENT_MSG                   0x0D
 #define LOG_PID_MSG                     0x0E    // deprecated
 #define LOG_COMPASS_MSG                 0x0F
-#define LOG_INAV_MSG                    0x11
+#define LOG_INAV_MSG                    0x11    // deprecated
 #define LOG_CAMERA_MSG                  0x12
 #define LOG_ERROR_MSG                   0x13
 #define LOG_DATA_INT16_MSG              0x14
@@ -280,7 +266,7 @@
 #define MASK_LOG_OPTFLOW                (1<<11)
 #define MASK_LOG_PID                    (1<<12) // deprecated
 #define MASK_LOG_COMPASS                (1<<13)
-#define MASK_LOG_INAV                   (1<<14)
+#define MASK_LOG_INAV                   (1<<14) // deprecated
 #define MASK_LOG_CAMERA                 (1<<15)
 
 // DATA - event logging

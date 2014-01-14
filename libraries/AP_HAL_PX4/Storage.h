@@ -15,12 +15,8 @@
 
 class PX4::PX4Storage : public AP_HAL::Storage {
 public:
-    PX4Storage() :
-	_fd(-1),
-	_dirty_mask(0),
-	_perf_storage(perf_alloc(PC_ELAPSED, "APM_storage")),
-	_perf_errors(perf_alloc(PC_COUNT, "APM_storage_errors"))
-	{}
+    PX4Storage();
+
     void init(void* machtnichts) {}
     uint8_t  read_byte(uint16_t loc);
     uint16_t read_word(uint16_t loc);
@@ -35,6 +31,7 @@ public:
     void _timer_tick(void);
 
 private:
+    const char *_storage_name;
     int _fd;
     volatile bool _initialised;
     void _storage_create(void);
@@ -44,6 +41,10 @@ private:
     volatile uint32_t _dirty_mask;
     perf_counter_t  _perf_storage;
     perf_counter_t  _perf_errors;
+    bool _have_mtd;
+    void _upgrade_to_mtd(void);
+    uint32_t _mtd_signature(void);
+    void _mtd_write_signature(void);
 };
 
 #endif // __AP_HAL_PX4_STORAGE_H__
