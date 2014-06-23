@@ -102,7 +102,9 @@ void PX4Storage::_upgrade_to_mtd(void)
         return;        
     }
     close(old_fd);
-    if (::write(mtd_fd, _buffer, sizeof(_buffer)) != sizeof(_buffer)) {
+    ssize_t ret;
+    if ((ret=::write(mtd_fd, _buffer, sizeof(_buffer))) != sizeof(_buffer)) {
+        ::printf("mtd write of %u bytes returned %d errno=%d\n", sizeof(_buffer), ret, errno);
         hal.scheduler->panic("Unable to write MTD for upgrade");        
     }
     close(mtd_fd);
@@ -140,17 +142,26 @@ void PX4Storage::_storage_open(void)
                 _upgrade_to_mtd();
             }
         }
-        if (!good_signature) {
-            _mtd_write_signature();
-        }
+
+        // we write the signature every time, even if it already is
+        // good, as this gives us a way to detect if the MTD device is
+        // functional. It is better to panic now than to fail to save
+        // parameters in flight
+        _mtd_write_signature();
 
 	_dirty_mask = 0;
 	int fd = open(MTD_PARAMS_FILE, O_RDONLY);
 	if (fd == -1) {
             hal.scheduler->panic("Failed to open " MTD_PARAMS_FILE);
 	}
-	if (read(fd, _buffer, sizeof(_buffer)) != sizeof(_buffer)) {
-            hal.scheduler->panic("Failed to read " MTD_PARAMS_FILE);
+        const uint16_t chunk_size = 128;
+        for (uint16_t ofs=0; ofs<sizeof(_buffer); ofs += chunk_size) {
+            ssize_t ret = read(fd, &_buffer[ofs], chunk_size);
+            if (ret != chunk_size) {
+                ::printf("storage read of %u bytes at %u to %p failed - got %d errno=%d\n",
+                         (unsigned)sizeof(_buffer), (unsigned)ofs, &_buffer[ofs], (int)ret, (int)errno);
+                hal.scheduler->panic("Failed to read " MTD_PARAMS_FILE);
+            }
 	}
 	close(fd);
 	_initialised = true;

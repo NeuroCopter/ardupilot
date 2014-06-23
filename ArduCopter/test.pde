@@ -4,22 +4,17 @@
 
 // These are function definitions so the Menu can be constructed before the functions
 // are defined below. Order matters to the compiler.
-#if HIL_MODE != HIL_MODE_ATTITUDE && HIL_MODE != HIL_MODE_SENSORS
+#if HIL_MODE == HIL_MODE_DISABLED
 static int8_t   test_baro(uint8_t argc,                 const Menu::arg *argv);
 #endif
 static int8_t   test_compass(uint8_t argc,              const Menu::arg *argv);
-static int8_t   test_gps(uint8_t argc,                  const Menu::arg *argv);
 static int8_t   test_ins(uint8_t argc,                  const Menu::arg *argv);
-static int8_t   test_logging(uint8_t argc,              const Menu::arg *argv);
-static int8_t   test_motors(uint8_t argc,               const Menu::arg *argv);
 static int8_t   test_optflow(uint8_t argc,              const Menu::arg *argv);
-static int8_t   test_radio_pwm(uint8_t argc,            const Menu::arg *argv);
-static int8_t   test_radio(uint8_t argc,                const Menu::arg *argv);
 static int8_t   test_relay(uint8_t argc,                const Menu::arg *argv);
-#if CONFIG_HAL_BOARD == HAL_BOARD_PX4
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
 static int8_t   test_shell(uint8_t argc,                const Menu::arg *argv);
 #endif
-#if HIL_MODE != HIL_MODE_ATTITUDE && HIL_MODE != HIL_MODE_SENSORS
+#if HIL_MODE == HIL_MODE_DISABLED
 static int8_t   test_sonar(uint8_t argc,                const Menu::arg *argv);
 #endif
 
@@ -28,22 +23,17 @@ static int8_t   test_sonar(uint8_t argc,                const Menu::arg *argv);
 // User enters the string in the console to call the functions on the right.
 // See class Menu in AP_Coommon for implementation details
 const struct Menu::command test_menu_commands[] PROGMEM = {
-#if HIL_MODE != HIL_MODE_ATTITUDE && HIL_MODE != HIL_MODE_SENSORS
+#if HIL_MODE == HIL_MODE_DISABLED
     {"baro",                test_baro},
 #endif
     {"compass",             test_compass},
-    {"gps",                 test_gps},
     {"ins",                 test_ins},
-    {"logging",             test_logging},
-    {"motors",              test_motors},
     {"optflow",             test_optflow},
-    {"pwm",                 test_radio_pwm},
-    {"radio",               test_radio},
     {"relay",               test_relay},
-#if CONFIG_HAL_BOARD == HAL_BOARD_PX4
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
     {"shell", 				test_shell},
 #endif
-#if HIL_MODE != HIL_MODE_ATTITUDE && HIL_MODE != HIL_MODE_SENSORS
+#if HIL_MODE == HIL_MODE_DISABLED
     {"sonar",               test_sonar},
 #endif
 };
@@ -58,13 +48,13 @@ test_mode(uint8_t argc, const Menu::arg *argv)
     return 0;
 }
 
-#if HIL_MODE != HIL_MODE_ATTITUDE && HIL_MODE != HIL_MODE_SENSORS
+#if HIL_MODE == HIL_MODE_DISABLED
 static int8_t
 test_baro(uint8_t argc, const Menu::arg *argv)
 {
     int32_t alt;
     print_hit_enter();
-    init_barometer();
+    init_barometer(true);
 
     while(1) {
         delay(100);
@@ -134,7 +124,7 @@ test_compass(uint8_t argc, const Menu::arg *argv)
                     // Calculate heading
                     const Matrix3f &m = ahrs.get_dcm_matrix();
                     heading = compass.calculate_heading(m);
-                    compass.null_offsets();
+                    compass.learn_offsets();
                 }
                 medium_loopCounter = 0;
             }
@@ -171,36 +161,6 @@ test_compass(uint8_t argc, const Menu::arg *argv)
 }
 
 static int8_t
-test_gps(uint8_t argc, const Menu::arg *argv)
-{
-    print_hit_enter();
-    delay(1000);
-
-    while(1) {
-        delay(100);
-
-        g_gps->update();
-
-        if (g_gps->new_data) {
-            cliSerial->printf_P(PSTR("Lat: "));
-            print_latlon(cliSerial, g_gps->latitude);
-            cliSerial->printf_P(PSTR(", Lon "));
-            print_latlon(cliSerial, g_gps->longitude);
-            cliSerial->printf_P(PSTR(", Alt: %ldm, #sats: %d\n"),
-                            g_gps->altitude_cm/100,
-                            g_gps->num_sats);
-            g_gps->new_data = false;
-        }else{
-            cliSerial->print_P(PSTR("."));
-        }
-        if(cliSerial->available() > 0) {
-            return (0);
-        }
-    }
-    return 0;
-}
-
-static int8_t
 test_ins(uint8_t argc, const Menu::arg *argv)
 {
     Vector3f gyro, accel;
@@ -230,47 +190,6 @@ test_ins(uint8_t argc, const Menu::arg *argv)
         delay(40);
         if(cliSerial->available() > 0) {
             return (0);
-        }
-    }
-}
-
-/*
- *  test the dataflash is working
- */
-static int8_t
-test_logging(uint8_t argc, const Menu::arg *argv)
-{
-    cliSerial->println_P(PSTR("Testing dataflash logging"));
-    DataFlash.ShowDeviceInfo(cliSerial);
-    return 0;
-}
-
-static int8_t
-test_motors(uint8_t argc, const Menu::arg *argv)
-{
-    cliSerial->printf_P(PSTR(
-                        "Connect battery for this test.\n"
-                        "Motors will spin by frame position order.\n"
-                        "Front (& right of centerline) motor first, then in clockwise order around frame.\n"
-                        "Remember to disconnect battery after this test.\n"
-                        "Any key to exit.\n"));
-
-    // ensure all values have been sent to motors
-    motors.set_update_rate(g.rc_speed);
-    motors.set_frame_orientation(g.frame_orientation);
-    motors.set_min_throttle(g.throttle_min);
-    motors.set_mid_throttle(g.throttle_mid);
-
-    // enable motors
-    init_rc_out();
-
-    while(1) {
-        delay(20);
-        read_radio();
-        motors.output_test();
-        if(cliSerial->available() > 0) {
-            g.esc_calibrate.set_and_save(0);
-            return(0);
         }
     }
 }
@@ -305,64 +224,6 @@ test_optflow(uint8_t argc, const Menu::arg *argv)
 #endif      // OPTFLOW == ENABLED
 }
 
-static int8_t
-test_radio_pwm(uint8_t argc, const Menu::arg *argv)
-{
-    print_hit_enter();
-    delay(1000);
-
-    while(1) {
-        delay(20);
-
-        // Filters radio input - adjust filters in the radio.pde file
-        // ----------------------------------------------------------
-        read_radio();
-
-        // servo Yaw
-        //APM_RC.OutputCh(CH_7, g.rc_4.radio_out);
-
-        cliSerial->printf_P(PSTR("IN: 1: %d\t2: %d\t3: %d\t4: %d\t5: %d\t6: %d\t7: %d\t8: %d\n"),
-                        g.rc_1.radio_in,
-                        g.rc_2.radio_in,
-                        g.rc_3.radio_in,
-                        g.rc_4.radio_in,
-                        g.rc_5.radio_in,
-                        g.rc_6.radio_in,
-                        g.rc_7.radio_in,
-                        g.rc_8.radio_in);
-
-        if(cliSerial->available() > 0) {
-            return (0);
-        }
-    }
-}
-
-static int8_t
-test_radio(uint8_t argc, const Menu::arg *argv)
-{
-    print_hit_enter();
-    delay(1000);
-
-    while(1) {
-        delay(20);
-        read_radio();
-
-
-        cliSerial->printf_P(PSTR("IN  1: %d\t2: %d\t3: %d\t4: %d\t5: %d\t6: %d\t7: %d\n"),
-                        g.rc_1.control_in,
-                        g.rc_2.control_in,
-                        g.rc_3.control_in,
-                        g.rc_4.control_in,
-                        g.rc_5.control_in,
-                        g.rc_6.control_in,
-                        g.rc_7.control_in);
-
-        if(cliSerial->available() > 0) {
-            return (0);
-        }
-    }
-}
-
 static int8_t test_relay(uint8_t argc, const Menu::arg *argv)
 {
     print_hit_enter();
@@ -370,14 +231,14 @@ static int8_t test_relay(uint8_t argc, const Menu::arg *argv)
 
     while(1) {
         cliSerial->printf_P(PSTR("Relay on\n"));
-        relay.on();
+        relay.on(0);
         delay(3000);
         if(cliSerial->available() > 0) {
             return (0);
         }
 
         cliSerial->printf_P(PSTR("Relay off\n"));
-        relay.off();
+        relay.off(0);
         delay(3000);
         if(cliSerial->available() > 0) {
             return (0);
@@ -385,7 +246,7 @@ static int8_t test_relay(uint8_t argc, const Menu::arg *argv)
     }
 }
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_PX4
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 || CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
 /*
  *  run a debug shell
  */
@@ -397,7 +258,7 @@ test_shell(uint8_t argc, const Menu::arg *argv)
 }
 #endif
 
-#if HIL_MODE != HIL_MODE_ATTITUDE && HIL_MODE != HIL_MODE_SENSORS
+#if HIL_MODE == HIL_MODE_DISABLED
 /*
  *  test the sonar
  */

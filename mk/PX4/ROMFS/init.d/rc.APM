@@ -4,6 +4,8 @@
 
 # To disable APM startup add a /fs/microsd/APM/nostart file
 # To enable mkblctrl startup add a /fs/microsd/APM/mkblctrl file
+# To enable mkblctrl_+ startup add a /fs/microsd/APM/mkblctrl_+ file
+# To enable mkblctrl_x startup add a /fs/microsd/APM/mkblctrl_x file
 # To enable PWM on FMUv1 on ttyS1 add a /fs/microsd/APM/AUXPWM.en file
 
 set deviceA /dev/ttyACM0
@@ -84,6 +86,28 @@ else
     sh /etc/init.d/rc.error
 fi
 
+# start mkblctrl driver if configured
+if [ -f /fs/microsd/APM/mkblctrl ]
+then
+    echo "Setting up mkblctrl driver"
+    echo "Setting up mkblctrl driver" >> $logfile
+    mkblctrl -d /dev/pwm_output
+fi
+
+if [ -f /fs/microsd/APM/mkblctrl_+ ]
+then
+    echo "Setting up mkblctrl driver +"
+    echo "Setting up mkblctrl driver +" >> $logfile
+    mkblctrl -mkmode + -d /dev/pwm_output
+fi
+
+if [ -f /fs/microsd/APM/mkblctrl_x ]
+then
+    echo "Setting up mkblctrl driver x"
+    echo "Setting up mkblctrl driver x" >> $logfile
+    mkblctrl -mkmode x -d /dev/pwm_output
+fi
+
 
 # try the px4io start twice. Some FMUv2 board don't
 # come up the first time
@@ -150,15 +174,6 @@ else
     then
        sh /etc/init.d/rc.error
     fi
-
-    if [ -f /fs/microsd/APM/mkblctrl ]
-    then
-   	echo "APM/mkblctrl found - switch to MK I2C ESCs"
-   	echo "APM/mkblctrl found - switch to MK I2C ESCs" >> $logfile
-	echo "Setting up mkblctrl driver"
-	echo "Setting up mkblctrl driver" >> $logfile
-	mkblctrl -mkmode x
-    fi
 fi
 
 if [ $BOARD == FMUv1 -a $deviceD == /dev/ttyS1 ]
@@ -192,7 +207,17 @@ then
     if hmc5883 start
     then
         echo "hmc5883 started OK"
+        if hmc5883 calibrate
+        then
+          echo "hmc5883 calibrate OK"
+        else 
+          echo "hmc5883 calibrate failed"
+          echo "hmc5883 calibrate failed" >> $logfile
+          tone_alarm MSBBB
+        fi
     else
+        echo "hmc5883 start failed"
+        echo "hmc5883 start failed" >> $logfile
         sh /etc/init.d/rc.error
     fi
     if mpu6000 start
@@ -213,7 +238,16 @@ else
     if hmc5883 start
     then
         echo "Using external magnetometer"
+        if hmc5883 calibrate
+        then
+          echo "hmc5883 calibrate OK"
+        else 
+          echo "hmc5883 calibrate failed"
+          echo "hmc5883 calibrate failed" >> $logfile
+          tone_alarm MSBBB
+        fi
     fi
+
     if mpu6000 start
     then
        echo "Found MPU6000"
@@ -248,20 +282,38 @@ fi
 
 echo "Trying PX4IO board"
 
-# rgbled
-if rgbled start
-then
-   echo "rgbled started OK"
-else
-   echo "Failed to start rgbled driver" >> $logfile
-fi
-
 if mtd start /fs/mtd
 then
     echo "started mtd driver OK"
 else
     echo "failed to start mtd driver"
+    echo "failed to start mtd driver" >> $logfile
     sh /etc/init.d/rc.error           
+fi
+
+if mtd readtest /fs/mtd
+then
+    echo "mtd readtest OK"
+else
+    echo "failed to read mtd"
+    echo "failed to read mtd" >> $logfile
+    sh /etc/init.d/rc.error           
+fi
+
+if [ $BOARD == FMUv2 ]
+then
+  # the ramtron on FMUv2 is very fast and can handle trillions of
+  # writes. This full rw test on each boot ensures it is working
+  # properly. We have one board that failed this, so
+  # the test is arguably worth having
+  if mtd rwtest /fs/mtd
+  then
+    echo "mtd rwtest OK"
+  else
+    echo "failed to test mtd"
+    echo "failed to test mtd" >> $logfile
+    sh /etc/init.d/rc.error           
+  fi
 fi
 
 echo Starting ArduPilot $deviceA $deviceC $deviceD

@@ -17,8 +17,17 @@
 #include <AP_InertialSensor.h>
 #include <AP_Notify.h>
 #include <AP_GPS.h>
+#include <AP_Baro.h>
+#include <Filter.h>
 #include <DataFlash.h>
 #include <GCS_MAVLink.h>
+#include <AP_Mission.h>
+#include <AP_AHRS.h>
+#include <AP_Airspeed.h>
+#include <AP_Vehicle.h>
+#include <AP_ADC_AnalogSource.h>
+#include <AP_Compass.h>
+#include <AP_Declination.h>
 
 const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
 AP_InertialSensor_MPU6000 ins;
@@ -29,7 +38,7 @@ void setup(void)
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_APM2
     // we need to stop the barometer from holding the SPI bus
-    hal.gpio->pinMode(40, GPIO_OUTPUT);
+    hal.gpio->pinMode(40, HAL_GPIO_OUTPUT);
     hal.gpio->write(40, 1);
 #endif
 
