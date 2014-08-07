@@ -109,12 +109,16 @@ public:
         k_param_rc_13,
         k_param_rc_14,
         k_param_rally,
-        k_param_hybrid_brake_rate,
-        k_param_hybrid_brake_angle_max,
-        k_param_pilot_accel_z,          // 48
+        k_param_poshold_brake_rate,
+        k_param_poshold_brake_angle_max,
+        k_param_pilot_accel_z,
         k_param_serial0_baud,
         k_param_serial1_baud,
         k_param_serial2_baud,
+        k_param_land_repositioning,
+        k_param_sonar, // sonar object
+        k_param_ekfcheck_thresh,        // 54
+        k_param_terrain,
 
         // 65: AP_Limits Library
         k_param_limits = 65,            // deprecated - remove
@@ -122,7 +126,8 @@ public:
         k_param_geofence_limit,         // deprecated - remove
         k_param_altitude_limit,         // deprecated - remove
         k_param_fence,
-        k_param_gps_glitch,             // 70
+        k_param_gps_glitch,
+        k_param_baro_glitch,            // 71
 
         //
         // 75: Singlecopter, CoaxCopter
@@ -169,6 +174,7 @@ public:
         k_param_telem_delay,
         k_param_gcs2,
         k_param_serial2_baud_old, // deprecated
+        k_param_serial2_protocol,
 
         //
         // 140: Sensor parameters
@@ -181,13 +187,13 @@ public:
         k_param_pack_capacity,  // deprecated - can be deleted
         k_param_compass_enabled,
         k_param_compass,
-        k_param_sonar_enabled,
+        k_param_sonar_enabled_old, // deprecated
         k_param_frame_orientation,
         k_param_optflow_enabled,
         k_param_fs_batt_voltage,
         k_param_ch7_option,
         k_param_auto_slew_rate,     // deprecated - can be deleted
-        k_param_sonar_type,
+        k_param_sonar_type_old,     // deprecated
         k_param_super_simple = 155,
         k_param_axis_enabled = 157, // deprecated - remove with next eeprom number change
         k_param_copter_leds_mode,   // deprecated - remove with next eeprom number change
@@ -315,14 +321,11 @@ public:
     AP_Int16        serial1_baud;
 #if MAVLINK_COMM_NUM_BUFFERS > 2
     AP_Int16        serial2_baud;
+    AP_Int8         serial2_protocol;
 #endif
     AP_Int8         telem_delay;
 
     AP_Int16        rtl_altitude;
-    AP_Int8         sonar_enabled;
-    AP_Int8         sonar_type;       // 0 = XL, 1 = LV,
-                                      // 2 = XLL (XL with 10m range)
-                                      // 3 = HRLV
     AP_Float        sonar_gain;
 
     AP_Int8         failsafe_battery_enabled;   // battery failsafe enabled
@@ -343,8 +346,8 @@ public:
     AP_Int8         wp_yaw_behavior;            // controls how the autopilot controls yaw during missions
     AP_Int8         rc_feel_rp;                 // controls vehicle response to user input with 0 being extremely soft and 100 begin extremely crisp
 
-    AP_Int16        hybrid_brake_rate;          // hybrid flight mode's rotation rate during braking in deg/sec
-    AP_Int16        hybrid_brake_angle_max;     // hybrid flight mode's max lean angle during braking in centi-degrees
+    AP_Int16        poshold_brake_rate;         // PosHold flight mode's rotation rate during braking in deg/sec
+    AP_Int16        poshold_brake_angle_max;    // PosHold flight mode's max lean angle during braking in centi-degrees
     
     // Waypoints
     //
@@ -383,6 +386,9 @@ public:
     AP_Int8         ch7_option;
     AP_Int8         ch8_option;
     AP_Int8         arming_check;
+
+    AP_Int8         land_repositioning;
+    AP_Float        ekfcheck_thresh;
 
 #if FRAME_CONFIG ==     HELI_FRAME
     // Heli

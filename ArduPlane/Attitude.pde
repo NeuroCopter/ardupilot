@@ -126,8 +126,8 @@ static void stick_mix_channel(RC_Channel *channel, int16_t &servo_out)
         
     ch_inf = (float)channel->radio_in - (float)channel->radio_trim;
     ch_inf = fabsf(ch_inf);
-    ch_inf = min(ch_inf, 400.0);
-    ch_inf = ((400.0 - ch_inf) / 400.0);
+    ch_inf = min(ch_inf, 400.0f);
+    ch_inf = ((400.0f - ch_inf) / 400.0f);
     servo_out *= ch_inf;
     servo_out += channel->pwm_to_angle();
 }
@@ -356,7 +356,7 @@ static void stabilize()
      */
     if (channel_throttle->control_in == 0 &&
         relative_altitude_abs_cm() < 500 && 
-        fabs(barometer.get_climb_rate()) < 0.5f &&
+        fabsf(barometer.get_climb_rate()) < 0.5f &&
         gps.ground_speed() < 3) {
         // we are low, with no climb rate, and zero throttle, and very
         // low ground speed. Zero the attitude controller
@@ -747,8 +747,8 @@ static void set_servos(void)
 			}
 
             // directly set the radio_out values for elevon mode
-            channel_roll->radio_out  =     elevon.trim1 + (BOOL_TO_SIGN(g.reverse_ch1_elevon) * (ch1 * 500.0/ SERVO_MAX));
-            channel_pitch->radio_out =     elevon.trim2 + (BOOL_TO_SIGN(g.reverse_ch2_elevon) * (ch2 * 500.0/ SERVO_MAX));
+            channel_roll->radio_out  =     elevon.trim1 + (BOOL_TO_SIGN(g.reverse_ch1_elevon) * (ch1 * 500.0f/ SERVO_MAX));
+            channel_pitch->radio_out =     elevon.trim2 + (BOOL_TO_SIGN(g.reverse_ch2_elevon) * (ch2 * 500.0f/ SERVO_MAX));
         }
 
         // push out the PWM values
@@ -874,10 +874,11 @@ static void set_servos(void)
     // OBC rules
     obc.check_crash_plane();
 #endif
-        
+
 #if HIL_MODE != HIL_MODE_DISABLED
     // get the servos to the GCS immediately for HIL
-    if (comm_get_txspace(MAVLINK_COMM_0) - MAVLINK_NUM_NON_PAYLOAD_BYTES >= MAVLINK_MSG_ID_RC_CHANNELS_SCALED_LEN) {
+    if (comm_get_txspace(MAVLINK_COMM_0) >= 
+        MAVLINK_MSG_ID_RC_CHANNELS_SCALED_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES) {
         send_servo_out(MAVLINK_COMM_0);
     }
     if (!g.hil_servos) {
@@ -912,3 +913,17 @@ static void demo_servos(uint8_t i)
     }
 }
 
+/*
+  adjust nav_pitch_cd for STAB_PITCH_DOWN_CD. This is used to make
+  keeping up good airspeed in FBWA mode easier, as the plane will
+  automatically pitch down a little when at low throttle. It makes
+  FBWA landings without stalling much easier.
+ */
+static void adjust_nav_pitch_throttle(void)
+{
+    uint8_t throttle = throttle_percentage();
+    if (throttle < aparm.throttle_cruise) {
+        float p = (aparm.throttle_cruise - throttle) / (float)aparm.throttle_cruise;
+        nav_pitch_cd -= g.stab_pitch_down * 100.0f * p;
+    }
+}
