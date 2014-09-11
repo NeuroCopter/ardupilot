@@ -1,5 +1,7 @@
 #include <AP_HAL.h>
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
+#include "Storage.h"
+
+#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX && !LINUX_STORAGE_USE_FRAM
 
 #include <assert.h>
 #include <sys/types.h>
@@ -9,7 +11,6 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include "Storage.h"
 using namespace Linux;
 
 /*
@@ -82,11 +83,11 @@ void LinuxStorage::_storage_open(void)
 void LinuxStorage::_mark_dirty(uint16_t loc, uint16_t length)
 {
 	uint16_t end = loc + length;
-	while (loc < end) {
-		uint8_t line = (loc >> LINUX_STORAGE_LINE_SHIFT);
-		_dirty_mask |= 1 << line;
-		loc += LINUX_STORAGE_LINE_SIZE;
-	}
+        for (uint8_t line=loc>>LINUX_STORAGE_LINE_SHIFT;
+             line <= end>>LINUX_STORAGE_LINE_SHIFT;
+             line++) {
+            _dirty_mask |= 1U << line;
+        }
 }
 
 void LinuxStorage::read_block(void *dst, uint16_t loc, size_t n) 
