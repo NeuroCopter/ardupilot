@@ -132,6 +132,9 @@ static void init_arm_motors()
     // disable inertial nav errors temporarily
     inertial_nav.ignore_next_error();
 
+    // reset battery failsafe
+    set_failsafe_battery(false);
+
     // notify that arming will occur (we do this early to give plenty of warning)
     AP_Notify::flags.armed = true;
     // call update_notify a few times to ensure the message gets out
@@ -181,16 +184,6 @@ static void init_arm_motors()
 
     // set hover throttle
     motors.set_mid_throttle(g.throttle_mid);
-
-    // Cancel arming if throttle is raised too high so that copter does not suddenly take off
-    read_radio();
-    if (g.rc_3.control_in > g.throttle_cruise && g.throttle_cruise > 100) {
-        motors.output_min();
-        failsafe_enable();
-        AP_Notify::flags.armed = false;
-        AP_Notify::flags.arming_failed = false;
-        return;
-    }
 
 #if SPRAYER == ENABLED
     // turn off sprayer's test if on
@@ -543,7 +536,7 @@ static bool arm_checks(bool display_failure)
 
     // check Baro & inav alt are within 1m
     if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_BARO)) {
-        if(fabs(inertial_nav.get_altitude() - baro_alt) > 100) {
+        if(fabs(inertial_nav.get_altitude() - baro_alt) > PREARM_MAX_ALT_DISPARITY_CM) {
             if (display_failure) {
                 gcs_send_text_P(SEVERITY_HIGH,PSTR("Arm: Alt disparity"));
             }
@@ -622,6 +615,7 @@ static void init_disarm_motors()
 
     // we are not in the air
     set_land_complete(true);
+    set_land_complete_maybe(true);
 
     // reset the mission
     mission.reset();
